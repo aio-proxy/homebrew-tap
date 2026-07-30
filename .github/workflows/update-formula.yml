@@ -1,0 +1,57 @@
+name: Update Formula
+
+on:
+  repository_dispatch:
+    types: [aio-proxy-release]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: aio-proxy version without the v prefix
+        required: true
+        type: string
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: update-aio-proxy-formula
+  cancel-in-progress: false
+
+jobs:
+  test:
+    name: Test generated formula (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-15, ubuntu-24.04]
+    runs-on: ${{ matrix.os }}
+    env:
+      VERSION: ${{ github.event.client_payload.version || inputs.version }}
+    steps:
+      - uses: Homebrew/actions/setup-homebrew@1f8e202ffddf94def7f42f6fa3a482e821489f9c
+      - run: ruby scripts/update-formula.rb "$VERSION"
+      - run: ruby scripts/update-formula_test.rb
+      - run: brew install-bundler-gems
+      - run: brew style Formula/aio-proxy.rb
+      - run: brew audit --strict aio-proxy/tap/aio-proxy
+      - run: brew install aio-proxy/tap/aio-proxy
+      - run: brew test aio-proxy
+
+  pull-request:
+    needs: test
+    runs-on: ubuntu-24.04
+    env:
+      VERSION: ${{ github.event.client_payload.version || inputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+      - run: ruby scripts/update-formula.rb "$VERSION"
+      - run: ruby scripts/update-formula_test.rb
+      - uses: peter-evans/create-pull-request@v7
+        with:
+          branch: automation/aio-proxy-${{ env.VERSION }}
+          delete-branch: true
+          add-paths: Formula/aio-proxy.rb
+          commit-message: "chore: update aio-proxy to v${{ env.VERSION }}"
+          title: "chore: update aio-proxy to v${{ env.VERSION }}"
+          body: "Automated update from the aio-proxy release workflow."
