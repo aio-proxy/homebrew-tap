@@ -2,6 +2,24 @@ require "minitest/autorun"
 require_relative "update-formula"
 
 class UpdateFormulaTest < Minitest::Test
+  def test_update_leaves_formula_unchanged_when_a_download_fails
+    formula_path = FormulaUpdater::FORMULA_PATH
+    original = File.binread(formula_path)
+    download = lambda do |package, _version|
+      raise "download failed" if package == FormulaUpdater::PACKAGES.last
+
+      package.length.to_s(16).rjust(64, "0")
+    end
+
+    assert_respond_to FormulaUpdater, :update
+    FormulaUpdater.stub(:download_checksum, download) do
+      assert_raises(RuntimeError) { FormulaUpdater.update("9.8.7") }
+    end
+    assert_equal original, File.binread(formula_path)
+  ensure
+    File.binwrite(formula_path, original) if original
+  end
+
   def test_render_contains_every_platform_and_install_contract
     checksums = FormulaUpdater::PACKAGES.to_h do |package|
       [package, package.length.to_s(16).rjust(64, "0")]

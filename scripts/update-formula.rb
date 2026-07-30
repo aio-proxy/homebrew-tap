@@ -63,14 +63,18 @@ module FormulaUpdater
 
     Digest::SHA256.hexdigest(response.body)
   end
+
+  def self.update(version)
+    checksums = PACKAGES.to_h do |package|
+      [package, download_checksum(package, version)]
+    end
+    File.write(FORMULA_PATH, render(version, checksums))
+  end
 end
 
 if $PROGRAM_NAME == __FILE__
   version = ARGV.fetch(0) { abort "usage: ruby scripts/update-formula.rb X.Y.Z" }
   abort "invalid version: #{version}" unless FormulaUpdater::VERSION_PATTERN.match?(version)
 
-  checksums = FormulaUpdater::PACKAGES.to_h do |package|
-    [package, FormulaUpdater.download_checksum(package, version)]
-  end
-  File.write(FormulaUpdater::FORMULA_PATH, FormulaUpdater.render(version, checksums))
+  FormulaUpdater.update(version)
 end
