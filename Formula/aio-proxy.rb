@@ -1,7 +1,6 @@
 class AioProxy < Formula
   desc "All-in-one LLM API proxy"
   homepage "https://github.com/aio-proxy/aio-proxy"
-  version "0.0.1"
   license "MIT"
 
   on_macos do
