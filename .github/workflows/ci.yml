@@ -1,0 +1,25 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  formula:
+    name: Formula (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-15, ubuntu-24.04]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: Homebrew/actions/setup-homebrew@1f8e202ffddf94def7f42f6fa3a482e821489f9c
+      - run: brew install-bundler-gems
+      - run: brew style Formula/aio-proxy.rb
+      - run: brew audit --strict aio-proxy/tap/aio-proxy
+      - run: brew install aio-proxy/tap/aio-proxy
+      - run: brew test aio-proxy
