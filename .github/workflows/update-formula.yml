@@ -51,7 +51,7 @@ jobs:
       - run: ruby scripts/update-formula_test.rb
       - uses: peter-evans/create-pull-request@22a9089034f40e5a961c8808d113e2c98fb63676 # v7
         with:
-          branch: automation/aio-proxy-${{ env.VERSION }}
+          branch: automation/aio-proxy
           delete-branch: true
           add-paths: Formula/aio-proxy.rb
           commit-message: "chore: update aio-proxy to v${{ env.VERSION }}"
