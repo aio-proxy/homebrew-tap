@@ -37,23 +37,32 @@ jobs:
       - run: brew install aio-proxy/tap/aio-proxy
       - run: brew test aio-proxy
 
-  pull-request:
+  # test already runs the full CI suite (style + audit --strict + install + test on
+  # macOS and Linux), so once it passes we commit the regenerated formula straight to
+  # main instead of opening a PR that has to be merged by hand. main has no branch
+  # protection; if that changes, switch this job back to a create-pull-request +
+  # auto-merge flow. The push uses GITHUB_TOKEN, which deliberately does NOT retrigger
+  # ci.yml — the validation already happened above.
+  commit:
     needs: test
     runs-on: ubuntu-24.04
     permissions:
       contents: write
-      pull-requests: write
     env:
       VERSION: ${{ github.event.client_payload.version || inputs.version }}
     steps:
       - uses: actions/checkout@v4
       - run: ruby scripts/update-formula.rb "$VERSION"
       - run: ruby scripts/update-formula_test.rb
-      - uses: peter-evans/create-pull-request@22a9089034f40e5a961c8808d113e2c98fb63676 # v7
-        with:
-          branch: automation/aio-proxy
-          delete-branch: true
-          add-paths: Formula/aio-proxy.rb
-          commit-message: "chore: update aio-proxy to v${{ env.VERSION }}"
-          title: "chore: update aio-proxy to v${{ env.VERSION }}"
-          body: "Automated update from the aio-proxy release workflow."
+      - name: Commit and push formula update
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          if git diff --quiet -- Formula/aio-proxy.rb; then
+            echo "Formula/aio-proxy.rb already at v${VERSION}; nothing to commit."
+            exit 0
+          fi
+          git add Formula/aio-proxy.rb
+          git commit -m "chore: update aio-proxy to v${VERSION}"
+          git push origin HEAD:main
