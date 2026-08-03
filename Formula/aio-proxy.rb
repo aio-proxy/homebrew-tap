@@ -5,23 +5,23 @@ class AioProxy < Formula
 
   on_macos do
     on_arm do
-      url "https://registry.npmjs.org/@aio-proxy/cli-darwin-arm64/-/cli-darwin-arm64-0.5.2.tgz"
-      sha256 "f8ca18366f84c50760e92a9d889858fe89eb8bfffa7dc35c1030af8ede29be9b"
+      url "https://registry.npmjs.org/@aio-proxy/cli-darwin-arm64/-/cli-darwin-arm64-0.6.0.tgz"
+      sha256 "bbb8dddad4a3d1a63b1bbdfd3b89ee4e44dc1b59a1e9d81e78bdbb9fe0fe4c39"
     end
     on_intel do
-      url "https://registry.npmjs.org/@aio-proxy/cli-darwin-x64/-/cli-darwin-x64-0.5.2.tgz"
-      sha256 "0e07c6c4767b79a92a20ae230f46ec4c9088b279aac414f63746a8a881aecfb1"
+      url "https://registry.npmjs.org/@aio-proxy/cli-darwin-x64/-/cli-darwin-x64-0.6.0.tgz"
+      sha256 "ed4ee04afe9860caefc10b0a6590e0428cd0e05955b85f0d504eca40ec83dbec"
     end
   end
 
   on_linux do
     on_arm do
-      url "https://registry.npmjs.org/@aio-proxy/cli-linux-arm64/-/cli-linux-arm64-0.5.2.tgz"
-      sha256 "e6536a61f8df280193726da27f06884c439f4351315b60c31d47416070e9a3e1"
+      url "https://registry.npmjs.org/@aio-proxy/cli-linux-arm64/-/cli-linux-arm64-0.6.0.tgz"
+      sha256 "6a3c89dce60d4b0ae603da7f538a29810d88c1ebc7100e3e87020c31577839d2"
     end
     on_intel do
-      url "https://registry.npmjs.org/@aio-proxy/cli-linux-x64/-/cli-linux-x64-0.5.2.tgz"
-      sha256 "441e57923a4f956920b2c680344e2483b92bfab21071b2a0f960c862fceb6aa8"
+      url "https://registry.npmjs.org/@aio-proxy/cli-linux-x64/-/cli-linux-x64-0.6.0.tgz"
+      sha256 "099fe7c998812c71213252f6b92b050b9313f58ee6de6c9865136633bebbc4eb"
     end
   end
 
