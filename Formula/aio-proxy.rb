@@ -27,9 +27,11 @@ class AioProxy < Formula
 
   def install
     bin.install "bin/aio-proxy"
+    bin.install_symlink "aio-proxy" => "aiop"
   end
 
   test do
     assert_equal version.to_s, shell_output("#{bin}/aio-proxy --version").strip
+    assert_equal version.to_s, shell_output("#{bin}/aiop --version").strip
   end
 end

@@ -6,6 +6,8 @@
 brew install aio-proxy/tap/aio-proxy
 ```
 
+This also installs the short command `aiop`.
+
 ## Upgrade
 
 ```sh

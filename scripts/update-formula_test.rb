@@ -35,6 +35,8 @@ class UpdateFormulaTest < Minitest::Test
       assert_includes formula, checksums.fetch(package)
     end
     assert_includes formula, 'bin.install "bin/aio-proxy"'
+    assert_includes formula, 'bin.install_symlink "aio-proxy" => "aiop"'
     assert_includes formula, 'shell_output("#{bin}/aio-proxy --version")'
+    assert_includes formula, 'shell_output("#{bin}/aiop --version")'
   end
 end
