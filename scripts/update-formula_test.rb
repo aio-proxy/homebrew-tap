@@ -39,4 +39,68 @@ class UpdateFormulaTest < Minitest::Test
     assert_includes formula, 'shell_output("#{bin}/aio-proxy --version")'
     assert_includes formula, 'shell_output("#{bin}/aiop --version")'
   end
+
+  # The whole point of the dispatched checksums: the formula update must not touch
+  # the network, because npm's CDN can 404 a just-published tarball for minutes.
+  def test_update_with_supplied_checksums_does_not_download
+    formula_path = FormulaUpdater::FORMULA_PATH
+    original = File.binread(formula_path)
+    checksums = valid_checksums
+    exploding = ->(*) { raise "download_checksum must not be called" }
+
+    FormulaUpdater.stub(:download_checksum, exploding) do
+      FormulaUpdater.update("9.8.7", checksums)
+    end
+
+    formula = File.read(formula_path)
+    FormulaUpdater::PACKAGES.each do |package|
+      assert_includes formula, checksums.fetch(package)
+      assert_includes formula, FormulaUpdater.tarball_url(package, "9.8.7")
+    end
+  ensure
+    File.binwrite(formula_path, original) if original
+  end
+
+  def test_checksums_from_env_returns_nil_when_unset_or_blank
+    assert_nil FormulaUpdater.checksums_from_env({})
+    assert_nil FormulaUpdater.checksums_from_env({ FormulaUpdater::CHECKSUMS_ENV => "" })
+    assert_nil FormulaUpdater.checksums_from_env({ FormulaUpdater::CHECKSUMS_ENV => "  " })
+    # workflow_dispatch has no client_payload, so toJSON() renders "null".
+    assert_nil FormulaUpdater.checksums_from_env({ FormulaUpdater::CHECKSUMS_ENV => "null" })
+  end
+
+  def test_checksums_from_env_parses_every_package
+    parsed = FormulaUpdater.checksums_from_env(
+      { FormulaUpdater::CHECKSUMS_ENV => JSON.generate(valid_checksums) },
+    )
+
+    assert_equal valid_checksums, parsed
+  end
+
+  # These values get interpolated into a generated Ruby file, so a malformed or
+  # partial payload must abort rather than produce a formula.
+  def test_checksums_from_env_rejects_malformed_payloads
+    [
+      "not json",
+      JSON.generate([]),
+      JSON.generate(valid_checksums.reject { |package, _| package == FormulaUpdater::PACKAGES.last }),
+      JSON.generate(valid_checksums.merge(FormulaUpdater::PACKAGES.first => "nope")),
+      JSON.generate(valid_checksums.merge(FormulaUpdater::PACKAGES.first => "A" * 64)),
+      JSON.generate(valid_checksums.merge(FormulaUpdater::PACKAGES.first => nil)),
+      JSON.generate(valid_checksums.merge(FormulaUpdater::PACKAGES.first => 42)),
+      JSON.generate(valid_checksums.merge(FormulaUpdater::PACKAGES.first => '"; system("boom")#')),
+    ].each do |payload|
+      assert_raises(RuntimeError, "expected #{payload.inspect} to be rejected") do
+        FormulaUpdater.checksums_from_env({ FormulaUpdater::CHECKSUMS_ENV => payload })
+      end
+    end
+  end
+
+  private
+
+  def valid_checksums
+    FormulaUpdater::PACKAGES.to_h do |package|
+      [package, package.length.to_s(16).rjust(64, "0")]
+    end
+  end
 end
