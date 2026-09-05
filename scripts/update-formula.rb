@@ -16,8 +16,9 @@ module FormulaUpdater
   FORMULA_PATH = File.expand_path("../Formula/aio-proxy.rb", __dir__)
 
   # Only the manual workflow_dispatch path downloads, and npm's CDN can 404 a
-  # freshly published tarball for minutes (per package, not per release) even
-  # though the packument already lists it. Retry rather than fail the run.
+  # freshly published tarball for minutes, per package rather than per release.
+  # This retry is that path's only protection against the lag, so it is also what
+  # lets the workflow skip a separate availability-polling job.
   DOWNLOAD_ATTEMPTS = 30
   DOWNLOAD_RETRY_DELAY = 20
 
@@ -67,10 +68,11 @@ module FormulaUpdater
     FORMULA
   end
 
-  # Checksums supplied by the release that just published the tarballs (see the
-  # aio-proxy repo's scripts/release.ts, which hashes the exact bytes it uploaded
-  # and ships them in the repository_dispatch payload). Preferring these over a
-  # download is what keeps the formula update independent of npm's CDN lag.
+  # Checksums supplied by the aio-proxy release that published these tarballs
+  # (scripts/homebrew-notify.ts), hashed from the bytes the registry served it —
+  # the same bytes `brew install` will fetch and verify below. Because producing
+  # them required a successful download, their arrival also proves the CDN is
+  # already serving this version.
   #
   # These land in a generated Ruby file, so validate the shape strictly instead of
   # interpolating whatever the payload happened to carry.

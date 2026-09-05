@@ -20,53 +20,14 @@ concurrency:
 env:
   VERSION: ${{ github.event.client_payload.version || inputs.version }}
   # Present only on the repository_dispatch path: the sha256 of each platform
-  # tarball, hashed by the release that published them (aio-proxy's
-  # scripts/release.ts). When set, update-formula.rb uses these instead of
-  # downloading — see the comment on the wait job for why that matters.
+  # tarball, hashed by the aio-proxy release (scripts/homebrew-notify.ts) from the
+  # bytes the registry served it. When set, update-formula.rb uses these instead
+  # of downloading the tarballs again.
   AIO_PROXY_CHECKSUMS: ${{ toJSON(github.event.client_payload.checksums) }}
 
 jobs:
-  # npm's packument is consistent the moment `npm publish` returns, but reads of
-  # the tarball itself lag by minutes behind the CDN — per package, not per
-  # release. The dispatched checksums keep formula GENERATION off the network, yet
-  # `brew install` below genuinely fetches the tarballs, so it would still 404.
-  # Gate on availability here, on the cheapest runner, rather than letting a
-  # 10x-billed macOS runner fail and need a manual rerun.
-  wait:
-    name: Wait for npm tarballs
-    runs-on: ubuntu-24.04
-    steps:
-      - name: Wait for every platform tarball to be fetchable
-        env:
-          # 15 minutes; observed lag is under 10.
-          ATTEMPTS: '60'
-          DELAY: '15'
-        run: |
-          set -uo pipefail
-          for package in cli-darwin-arm64 cli-darwin-x64 cli-linux-arm64 cli-linux-x64; do
-            url="https://registry.npmjs.org/@aio-proxy/${package}/-/${package}-${VERSION}.tgz"
-            attempt=0
-            until [ "${attempt}" -ge "${ATTEMPTS}" ]; do
-              attempt=$((attempt + 1))
-              # A HEAD is enough to prove the CDN will serve it, and avoids pulling
-              # ~120MB per package just to discard it.
-              code="$(curl -sSL -o /dev/null -w '%{http_code}' --head --max-time 60 "${url}" || echo 000)"
-              if [ "${code}" = '200' ]; then
-                echo "${package}: available"
-                break
-              fi
-              if [ "${attempt}" -ge "${ATTEMPTS}" ]; then
-                echo "::error::${url} still returns HTTP ${code} after ${ATTEMPTS} attempts" >&2
-                exit 1
-              fi
-              echo "${package}: HTTP ${code} (attempt ${attempt}/${ATTEMPTS}); retrying in ${DELAY}s"
-              sleep "${DELAY}"
-            done
-          done
-
   test:
     name: Test generated formula (${{ matrix.os }})
-    needs: wait
     strategy:
       fail-fast: false
       matrix:
