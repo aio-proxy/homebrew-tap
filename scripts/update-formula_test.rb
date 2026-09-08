@@ -1,4 +1,5 @@
 require "minitest/autorun"
+require "socket"
 require_relative "update-formula"
 
 class UpdateFormulaTest < Minitest::Test
@@ -31,7 +32,7 @@ class UpdateFormulaTest < Minitest::Test
     assert_equal 4, formula.scan(/^\s+url /).length
     assert_equal 4, formula.scan(/^\s+sha256 "[0-9a-f]{64}"$/).length
     FormulaUpdater::PACKAGES.each do |package|
-      assert_includes formula, FormulaUpdater.tarball_url(package, "9.8.7")
+      assert_includes formula, "https://github.com/aio-proxy/aio-proxy/releases/download/v9.8.7/#{package}-9.8.7.tgz"
       assert_includes formula, checksums.fetch(package)
     end
     assert_includes formula, 'bin.install "bin/aio-proxy"'
@@ -40,8 +41,7 @@ class UpdateFormulaTest < Minitest::Test
     assert_includes formula, 'shell_output("#{bin}/aiop --version")'
   end
 
-  # The whole point of the dispatched checksums: the formula update must not touch
-  # the network, because npm's CDN can 404 a just-published tarball for minutes.
+  # Supplied checksums avoid downloading all four attachments to generate the formula.
   def test_update_with_supplied_checksums_does_not_download
     formula_path = FormulaUpdater::FORMULA_PATH
     original = File.binread(formula_path)
@@ -55,7 +55,7 @@ class UpdateFormulaTest < Minitest::Test
     formula = File.read(formula_path)
     FormulaUpdater::PACKAGES.each do |package|
       assert_includes formula, checksums.fetch(package)
-      assert_includes formula, FormulaUpdater.tarball_url(package, "9.8.7")
+      assert_includes formula, "https://github.com/aio-proxy/aio-proxy/releases/download/v9.8.7/#{package}-9.8.7.tgz"
     end
   ensure
     File.binwrite(formula_path, original) if original
@@ -94,6 +94,34 @@ class UpdateFormulaTest < Minitest::Test
         FormulaUpdater.checksums_from_env({ FormulaUpdater::CHECKSUMS_ENV => payload })
       end
     end
+  end
+
+  def test_manual_download_follows_asset_redirects_and_hashes_the_body
+    server = TCPServer.new("127.0.0.1", 0)
+    url = "http://127.0.0.1:#{server.addr[1]}/redirect"
+    body = "packed platform binary"
+    requests = []
+    worker = Thread.new do
+      2.times do
+        client = server.accept
+        requests << client.gets.split[1]
+        line = client.gets until line == "\r\n"
+        if requests.last == "/redirect"
+          client.write "HTTP/1.1 302 Found\r\nLocation: /asset\r\nContent-Length: 0\r\nConnection: close\r\n\r\n"
+        else
+          client.write "HTTP/1.1 200 OK\r\nContent-Length: #{body.bytesize}\r\nConnection: close\r\n\r\n#{body}"
+        end
+        client.close
+      end
+    end
+    FormulaUpdater.stub(:tarball_url, url) do
+      assert_equal Digest::SHA256.hexdigest(body), FormulaUpdater.download_checksum("cli-darwin-arm64", "9.8.7")
+    end
+    assert_equal ["/redirect", "/asset"], requests
+  ensure
+    worker&.kill
+    worker&.join
+    server&.close
   end
 
   private

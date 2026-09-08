@@ -19,10 +19,6 @@ concurrency:
 
 env:
   VERSION: ${{ github.event.client_payload.version || inputs.version }}
-  # Present only on the repository_dispatch path: the sha256 of each platform
-  # tarball, hashed by the aio-proxy release (scripts/homebrew-notify.ts) from the
-  # bytes the registry served it. When set, update-formula.rb uses these instead
-  # of downloading the tarballs again.
   AIO_PROXY_CHECKSUMS: ${{ toJSON(github.event.client_payload.checksums) }}
 
 jobs:
