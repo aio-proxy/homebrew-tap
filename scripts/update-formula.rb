@@ -1,7 +1,6 @@
 require "digest"
 require "json"
-require "net/http"
-require "uri"
+require "open3"
 
 module FormulaUpdater
   PACKAGES = %w[
@@ -15,18 +14,23 @@ module FormulaUpdater
   CHECKSUMS_ENV = "AIO_PROXY_CHECKSUMS".freeze
   FORMULA_PATH = File.expand_path("../Formula/aio-proxy.rb", __dir__)
 
-  # Only the manual workflow_dispatch path downloads, and npm's CDN can 404 a
-  # freshly published tarball for minutes, per package rather than per release.
-  # This retry is that path's only protection against the lag, so it is also what
-  # lets the workflow skip a separate availability-polling job.
-  DOWNLOAD_ATTEMPTS = 30
-  DOWNLOAD_RETRY_DELAY = 20
+  # Manual updates download published attachments; dispatched updates already
+  # carry checksums. Keep a short retry for transient transport failures.
+  DOWNLOAD_ATTEMPTS = 3
+  DOWNLOAD_RETRY_DELAY = 5
 
-  def self.tarball_url(package, version)
-    "https://registry.npmjs.org/@aio-proxy/#{package}/-/#{package}-#{version}.tgz"
+  def self.tarball_url(package, version, source = "github-release")
+    case source
+    when "github-release"
+      "https://github.com/aio-proxy/aio-proxy/releases/download/v#{version}/#{package}-#{version}.tgz"
+    when "npm"
+      "https://registry.npmjs.org/@aio-proxy/#{package}/-/#{package}-#{version}.tgz"
+    else
+      raise "invalid artifact source: #{source}"
+    end
   end
 
-  def self.render(version, checksums)
+  def self.render(version, checksums, source = "github-release")
     <<~FORMULA
       class AioProxy < Formula
         desc "All-in-one LLM API proxy"
@@ -35,22 +39,22 @@ module FormulaUpdater
 
         on_macos do
           on_arm do
-            url "#{tarball_url("cli-darwin-arm64", version)}"
+            url "#{tarball_url("cli-darwin-arm64", version, source)}"
             sha256 "#{checksums.fetch("cli-darwin-arm64")}"
           end
           on_intel do
-            url "#{tarball_url("cli-darwin-x64", version)}"
+            url "#{tarball_url("cli-darwin-x64", version, source)}"
             sha256 "#{checksums.fetch("cli-darwin-x64")}"
           end
         end
 
         on_linux do
           on_arm do
-            url "#{tarball_url("cli-linux-arm64", version)}"
+            url "#{tarball_url("cli-linux-arm64", version, source)}"
             sha256 "#{checksums.fetch("cli-linux-arm64")}"
           end
           on_intel do
-            url "#{tarball_url("cli-linux-x64", version)}"
+            url "#{tarball_url("cli-linux-x64", version, source)}"
             sha256 "#{checksums.fetch("cli-linux-x64")}"
           end
         end
@@ -68,14 +72,8 @@ module FormulaUpdater
     FORMULA
   end
 
-  # Checksums supplied by the aio-proxy release that published these tarballs
-  # (scripts/homebrew-notify.ts), hashed from the bytes the registry served it —
-  # the same bytes `brew install` will fetch and verify below. Because producing
-  # them required a successful download, their arrival also proves the CDN is
-  # already serving this version.
-  #
-  # These land in a generated Ruby file, so validate the shape strictly instead of
-  # interpolating whatever the payload happened to carry.
+  # Checksums accompany the release notification. Validate strictly because the
+  # values are interpolated into executable Ruby in the generated formula.
   def self.checksums_from_env(env = ENV)
     raw = env[CHECKSUMS_ENV].to_s.strip
     return nil if raw.empty?
@@ -101,15 +99,19 @@ module FormulaUpdater
     end
   end
 
-  def self.download_checksum(package, version)
-    url = tarball_url(package, version)
+  def self.download_checksum(package, version, source = "github-release")
+    url = tarball_url(package, version, source)
     attempt = 0
     begin
       attempt += 1
-      response = Net::HTTP.get_response(URI(url))
-      raise "#{url}: HTTP #{response.code}" unless response.is_a?(Net::HTTPSuccess)
+      # Release download URLs redirect to signed asset URLs. Use argv form so
+      # neither the version nor the URL is interpreted by a shell.
+      body, error, status = Open3.capture3("curl", "--fail", "--location", "--max-redirs", "5",
+                                         "--connect-timeout", "15", "--max-time", "120",
+                                         "--silent", "--show-error", url)
+      raise "#{url}: #{error}" unless status.success?
 
-      Digest::SHA256.hexdigest(response.body)
+      Digest::SHA256.hexdigest(body)
     rescue StandardError => e
       raise if attempt >= DOWNLOAD_ATTEMPTS
 
@@ -119,11 +121,11 @@ module FormulaUpdater
     end
   end
 
-  def self.update(version, checksums = nil)
+  def self.update(version, checksums = nil, source = "github-release")
     checksums ||= PACKAGES.to_h do |package|
-      [package, download_checksum(package, version)]
+      [package, download_checksum(package, version, source)]
     end
-    File.write(FORMULA_PATH, render(version, checksums))
+    File.write(FORMULA_PATH, render(version, checksums, source))
   end
 end
 
@@ -131,5 +133,5 @@ if $PROGRAM_NAME == __FILE__
   version = ARGV.fetch(0) { abort "usage: ruby scripts/update-formula.rb X.Y.Z" }
   abort "invalid version: #{version}" unless FormulaUpdater::VERSION_PATTERN.match?(version)
 
-  FormulaUpdater.update(version, FormulaUpdater.checksums_from_env)
+  FormulaUpdater.update(version, FormulaUpdater.checksums_from_env, ENV.fetch("AIO_PROXY_SOURCE", "github-release"))
 end

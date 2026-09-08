@@ -1,11 +1,12 @@
 require "minitest/autorun"
+require "socket"
 require_relative "update-formula"
 
 class UpdateFormulaTest < Minitest::Test
   def test_update_leaves_formula_unchanged_when_a_download_fails
     formula_path = FormulaUpdater::FORMULA_PATH
     original = File.binread(formula_path)
-    download = lambda do |package, _version|
+    download = lambda do |package, _version, _source|
       raise "download failed" if package == FormulaUpdater::PACKAGES.last
 
       package.length.to_s(16).rjust(64, "0")
@@ -94,6 +95,44 @@ class UpdateFormulaTest < Minitest::Test
         FormulaUpdater.checksums_from_env({ FormulaUpdater::CHECKSUMS_ENV => payload })
       end
     end
+  end
+
+  def test_release_source_generates_release_urls_and_legacy_source_keeps_npm
+    release = FormulaUpdater.render("9.8.7", valid_checksums)
+    legacy = FormulaUpdater.render("9.8.7", valid_checksums, "npm")
+    FormulaUpdater::PACKAGES.each do |package|
+      assert_includes release, "https://github.com/aio-proxy/aio-proxy/releases/download/v9.8.7/#{package}-9.8.7.tgz"
+      assert_includes legacy, "https://registry.npmjs.org/@aio-proxy/#{package}/-/#{package}-9.8.7.tgz"
+    end
+    assert_raises(RuntimeError) { FormulaUpdater.render("9.8.7", valid_checksums, "unknown") }
+  end
+
+  def test_manual_download_follows_asset_redirects_and_hashes_the_body
+    server = TCPServer.new("127.0.0.1", 0)
+    url = "http://127.0.0.1:#{server.addr[1]}/redirect"
+    body = "packed platform binary"
+    requests = []
+    worker = Thread.new do
+      2.times do
+        client = server.accept
+        requests << client.gets.split[1]
+        line = client.gets until line == "\r\n"
+        if requests.last == "/redirect"
+          client.write "HTTP/1.1 302 Found\r\nLocation: /asset\r\nContent-Length: 0\r\nConnection: close\r\n\r\n"
+        else
+          client.write "HTTP/1.1 200 OK\r\nContent-Length: #{body.bytesize}\r\nConnection: close\r\n\r\n#{body}"
+        end
+        client.close
+      end
+    end
+    FormulaUpdater.stub(:tarball_url, url) do
+      assert_equal Digest::SHA256.hexdigest(body), FormulaUpdater.download_checksum("cli-darwin-arm64", "9.8.7")
+    end
+    assert_equal ["/redirect", "/asset"], requests
+  ensure
+    worker&.kill
+    worker&.join
+    server&.close
   end
 
   private
