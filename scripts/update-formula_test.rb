@@ -6,7 +6,7 @@ class UpdateFormulaTest < Minitest::Test
   def test_update_leaves_formula_unchanged_when_a_download_fails
     formula_path = FormulaUpdater::FORMULA_PATH
     original = File.binread(formula_path)
-    download = lambda do |package, _version, _source|
+    download = lambda do |package, _version|
       raise "download failed" if package == FormulaUpdater::PACKAGES.last
 
       package.length.to_s(16).rjust(64, "0")
@@ -32,7 +32,7 @@ class UpdateFormulaTest < Minitest::Test
     assert_equal 4, formula.scan(/^\s+url /).length
     assert_equal 4, formula.scan(/^\s+sha256 "[0-9a-f]{64}"$/).length
     FormulaUpdater::PACKAGES.each do |package|
-      assert_includes formula, FormulaUpdater.tarball_url(package, "9.8.7")
+      assert_includes formula, "https://github.com/aio-proxy/aio-proxy/releases/download/v9.8.7/#{package}-9.8.7.tgz"
       assert_includes formula, checksums.fetch(package)
     end
     assert_includes formula, 'bin.install "bin/aio-proxy"'
@@ -41,8 +41,7 @@ class UpdateFormulaTest < Minitest::Test
     assert_includes formula, 'shell_output("#{bin}/aiop --version")'
   end
 
-  # The whole point of the dispatched checksums: the formula update must not touch
-  # the network, because npm's CDN can 404 a just-published tarball for minutes.
+  # Supplied checksums avoid downloading all four attachments to generate the formula.
   def test_update_with_supplied_checksums_does_not_download
     formula_path = FormulaUpdater::FORMULA_PATH
     original = File.binread(formula_path)
@@ -56,7 +55,7 @@ class UpdateFormulaTest < Minitest::Test
     formula = File.read(formula_path)
     FormulaUpdater::PACKAGES.each do |package|
       assert_includes formula, checksums.fetch(package)
-      assert_includes formula, FormulaUpdater.tarball_url(package, "9.8.7")
+      assert_includes formula, "https://github.com/aio-proxy/aio-proxy/releases/download/v9.8.7/#{package}-9.8.7.tgz"
     end
   ensure
     File.binwrite(formula_path, original) if original
@@ -95,16 +94,6 @@ class UpdateFormulaTest < Minitest::Test
         FormulaUpdater.checksums_from_env({ FormulaUpdater::CHECKSUMS_ENV => payload })
       end
     end
-  end
-
-  def test_release_source_generates_release_urls_and_legacy_source_keeps_npm
-    release = FormulaUpdater.render("9.8.7", valid_checksums)
-    legacy = FormulaUpdater.render("9.8.7", valid_checksums, "npm")
-    FormulaUpdater::PACKAGES.each do |package|
-      assert_includes release, "https://github.com/aio-proxy/aio-proxy/releases/download/v9.8.7/#{package}-9.8.7.tgz"
-      assert_includes legacy, "https://registry.npmjs.org/@aio-proxy/#{package}/-/#{package}-9.8.7.tgz"
-    end
-    assert_raises(RuntimeError) { FormulaUpdater.render("9.8.7", valid_checksums, "unknown") }
   end
 
   def test_manual_download_follows_asset_redirects_and_hashes_the_body

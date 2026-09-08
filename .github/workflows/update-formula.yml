@@ -9,11 +9,6 @@ on:
         description: aio-proxy version without the v prefix
         required: true
         type: string
-      source:
-        description: Download source (npm for releases without GitHub attachments)
-        type: choice
-        default: github-release
-        options: [github-release, npm]
 
 permissions:
   contents: read
@@ -24,9 +19,6 @@ concurrency:
 
 env:
   VERSION: ${{ github.event.client_payload.version || inputs.version }}
-  # Old notifications used npm checksums. Keep them usable during migration;
-  # new notifications and manual updates consume GitHub Release attachments.
-  AIO_PROXY_SOURCE: ${{ github.event_name == 'repository_dispatch' && (github.event.client_payload.source || 'npm') || inputs.source || 'github-release' }}
   AIO_PROXY_CHECKSUMS: ${{ toJSON(github.event.client_payload.checksums) }}
 
 jobs:

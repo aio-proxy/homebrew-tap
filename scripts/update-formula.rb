@@ -19,18 +19,11 @@ module FormulaUpdater
   DOWNLOAD_ATTEMPTS = 3
   DOWNLOAD_RETRY_DELAY = 5
 
-  def self.tarball_url(package, version, source = "github-release")
-    case source
-    when "github-release"
-      "https://github.com/aio-proxy/aio-proxy/releases/download/v#{version}/#{package}-#{version}.tgz"
-    when "npm"
-      "https://registry.npmjs.org/@aio-proxy/#{package}/-/#{package}-#{version}.tgz"
-    else
-      raise "invalid artifact source: #{source}"
-    end
+  def self.tarball_url(package, version)
+    "https://github.com/aio-proxy/aio-proxy/releases/download/v#{version}/#{package}-#{version}.tgz"
   end
 
-  def self.render(version, checksums, source = "github-release")
+  def self.render(version, checksums)
     <<~FORMULA
       class AioProxy < Formula
         desc "All-in-one LLM API proxy"
@@ -39,22 +32,22 @@ module FormulaUpdater
 
         on_macos do
           on_arm do
-            url "#{tarball_url("cli-darwin-arm64", version, source)}"
+            url "#{tarball_url("cli-darwin-arm64", version)}"
             sha256 "#{checksums.fetch("cli-darwin-arm64")}"
           end
           on_intel do
-            url "#{tarball_url("cli-darwin-x64", version, source)}"
+            url "#{tarball_url("cli-darwin-x64", version)}"
             sha256 "#{checksums.fetch("cli-darwin-x64")}"
           end
         end
 
         on_linux do
           on_arm do
-            url "#{tarball_url("cli-linux-arm64", version, source)}"
+            url "#{tarball_url("cli-linux-arm64", version)}"
             sha256 "#{checksums.fetch("cli-linux-arm64")}"
           end
           on_intel do
-            url "#{tarball_url("cli-linux-x64", version, source)}"
+            url "#{tarball_url("cli-linux-x64", version)}"
             sha256 "#{checksums.fetch("cli-linux-x64")}"
           end
         end
@@ -99,8 +92,8 @@ module FormulaUpdater
     end
   end
 
-  def self.download_checksum(package, version, source = "github-release")
-    url = tarball_url(package, version, source)
+  def self.download_checksum(package, version)
+    url = tarball_url(package, version)
     attempt = 0
     begin
       attempt += 1
@@ -121,11 +114,11 @@ module FormulaUpdater
     end
   end
 
-  def self.update(version, checksums = nil, source = "github-release")
+  def self.update(version, checksums = nil)
     checksums ||= PACKAGES.to_h do |package|
-      [package, download_checksum(package, version, source)]
+      [package, download_checksum(package, version)]
     end
-    File.write(FORMULA_PATH, render(version, checksums, source))
+    File.write(FORMULA_PATH, render(version, checksums))
   end
 end
 
@@ -133,5 +126,5 @@ if $PROGRAM_NAME == __FILE__
   version = ARGV.fetch(0) { abort "usage: ruby scripts/update-formula.rb X.Y.Z" }
   abort "invalid version: #{version}" unless FormulaUpdater::VERSION_PATTERN.match?(version)
 
-  FormulaUpdater.update(version, FormulaUpdater.checksums_from_env, ENV.fetch("AIO_PROXY_SOURCE", "github-release"))
+  FormulaUpdater.update(version, FormulaUpdater.checksums_from_env)
 end
