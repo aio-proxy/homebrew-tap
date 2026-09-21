@@ -5,23 +5,23 @@ class AioProxy < Formula
 
   on_macos do
     on_arm do
-      url "https://github.com/aio-proxy/aio-proxy/releases/download/v0.27.0/cli-darwin-arm64-0.27.0.tgz"
-      sha256 "d5d7da825cce65dcbd773210bc832257f3cdadecc41a1835a499edbdc97983e4"
+      url "https://github.com/aio-proxy/aio-proxy/releases/download/v0.27.1/cli-darwin-arm64-0.27.1.tgz"
+      sha256 "4b5c2e1a70a591f89ffa8d3794975f49a61911bd87d0aaab630d956a632aa57c"
     end
     on_intel do
-      url "https://github.com/aio-proxy/aio-proxy/releases/download/v0.27.0/cli-darwin-x64-0.27.0.tgz"
-      sha256 "25eb6db3dcde5bff27bb11045ac4f29e3d93805943f9a759427fe09756cbc4e8"
+      url "https://github.com/aio-proxy/aio-proxy/releases/download/v0.27.1/cli-darwin-x64-0.27.1.tgz"
+      sha256 "cf5b2d75c1c60a4efd0d3cf46b5735129bcc823fa661869fbd13ec4a70f31b27"
     end
   end
 
   on_linux do
     on_arm do
-      url "https://github.com/aio-proxy/aio-proxy/releases/download/v0.27.0/cli-linux-arm64-0.27.0.tgz"
-      sha256 "e3e2c1ad8bc672da918879378e07c76ceeb4552a30e6742c497b4cbef77b6372"
+      url "https://github.com/aio-proxy/aio-proxy/releases/download/v0.27.1/cli-linux-arm64-0.27.1.tgz"
+      sha256 "5d81620e65896245e171bf1c851dd97556ab9777d88caa81026d4669f70732af"
     end
     on_intel do
-      url "https://github.com/aio-proxy/aio-proxy/releases/download/v0.27.0/cli-linux-x64-0.27.0.tgz"
-      sha256 "1054d097b641b1ade617d1de92761141532f5ffb61b160433f558677a490aa5d"
+      url "https://github.com/aio-proxy/aio-proxy/releases/download/v0.27.1/cli-linux-x64-0.27.1.tgz"
+      sha256 "6b4a5eda24aad7c39771452c7a95617014e535b0983042ae24376de60e4c3cf6"
     end
   end
 
